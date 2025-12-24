@@ -74,7 +74,19 @@ else:
 
         # AI INSIGHT (Gemini)
         if st.button(f"Chiedi all'AI un commento su {amico_stats}"):
-            model = genai.GenerativeModel('gemini-pro')
-            prompt = f"Scrivi una breve descrizione ironica e divertente (max 2 righe) per un amico che ha queste statistiche medie: {medie.to_dict()}. Sii molto scherzoso per una festa di Capodanno."
-            response = model.generate_content(prompt)
-            st.info(f"🤖 **L'AI dice:** {response.text}")
+            try:
+                # Usiamo il nome del modello aggiornato per l'API v1
+                model = genai.GenerativeModel(model_name='models/gemini-1.5-flash')
+
+                prompt = f"Scrivi una breve descrizione ironica e divertente (max 2 righe) per un amico che ha queste statistiche medie: {medie.to_dict()}. Sii molto scherzoso per una festa di Capodanno."
+
+                response = model.generate_content(prompt)
+                st.info(f"🤖 **L'AI dice:** {response.text}")
+            except Exception as e:
+                # Se fallisce ancora, proviamo con il modello pro come backup
+                try:
+                    model = genai.GenerativeModel(model_name='models/gemini-1.5-pro')
+                    response = model.generate_content(prompt)
+                    st.info(f"🤖 **L'AI dice (Pro):** {response.text}")
+                except:
+                    st.error(f"L'AI è un po' sbronza, riprova tra un attimo! (Errore: {e})")
