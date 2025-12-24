@@ -4,13 +4,29 @@ import plotly.graph_objects as go
 from supabase import create_client
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 from datetime import datetime, timedelta
 
 # Configurazione
 load_dotenv()
+# Recuperiamo i valori: se non li trova nel file .env, li cerca nei Secrets di Streamlit
+url = os.getenv("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+# Qui definiamo ai_key: assicurati che il nome nei Secrets sia GOOGLE_API_KEY
+ai_key = os.getenv("GOOGLE_API_KEY") or st.secrets.get("GOOGLE_API_KEY")
+
+# 2. Inizializzazione Client
+if not url or not key:
+    st.error("Configurazione Database mancante!")
+    st.stop()
+
+if ai_key:
+    client = genai.Client(api_key=ai_key)
+else:
+    st.warning("Chiave AI non trovata. Il commento automatico non funzionerà.")
+
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+client = genai.Client(api_key=ai_key)
 
 st.set_page_config(page_title="Radar Party 2024", layout="wide")
 
@@ -70,23 +86,19 @@ else:
         # Grafico Radar
         fig = go.Figure(go.Scatterpolar(r=medie.values, theta=medie.index, fill='toself', line_color='orange'))
         fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 10])), showlegend=False)
+        fig.update_polars(bgcolor="rgba(0,0,0,0)")  # Rende lo sfondo del radar trasparente/elegante
         st.plotly_chart(fig)
 
         # AI INSIGHT (Gemini)
         if st.button(f"Chiedi all'AI un commento su {amico_stats}"):
             try:
-                # Usiamo il nome del modello aggiornato per l'API v1
-                model = genai.GenerativeModel(model_name='models/gemini-1.5-flash')
+                prompt = f"Sei un comico ironico. Scrivi una battuta fulminante (max 20 parole) per un amico con questi voti medi: {medie.to_dict()}. Sii molto scherzoso."
 
-                prompt = f"Scrivi una breve descrizione ironica e divertente (max 2 righe) per un amico che ha queste statistiche medie: {medie.to_dict()}. Sii molto scherzoso per una festa di Capodanno."
-
-                response = model.generate_content(prompt)
+                # Nuova sintassi per generare contenuti
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=prompt
+                )
                 st.info(f"🤖 **L'AI dice:** {response.text}")
             except Exception as e:
-                # Se fallisce ancora, proviamo con il modello pro come backup
-                try:
-                    model = genai.GenerativeModel(model_name='models/gemini-1.5-pro')
-                    response = model.generate_content(prompt)
-                    st.info(f"🤖 **L'AI dice (Pro):** {response.text}")
-                except:
-                    st.error(f"L'AI è un po' sbronza, riprova tra un attimo! (Errore: {e})")
+                st.error(f"L'AI ha bevuto troppo spumante! Errore: {e}")
